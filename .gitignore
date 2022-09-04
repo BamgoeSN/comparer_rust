@@ -1,0 +1,6 @@
+/target
+
+/compile/*/main.*
+/compile/*/*.exe
+/compile/java/Main.java
+/compile/java/*.jar
