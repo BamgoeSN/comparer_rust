@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs::{self, File},
     io::{self, Result, Write},
     path::{Path, PathBuf},
@@ -9,11 +8,12 @@ use rand::random;
 use sha2::{Digest, Sha256};
 use subprocess::*;
 
-pub fn run(exec: impl AsRef<OsStr>, input: &str, dir_input: impl AsRef<Path>) -> Result<String> {
+pub fn run(exec: Exec, input: &str, dir_input: impl AsRef<Path>) -> Result<String> {
     let input_loc = generate_file(&dir_input, input)?;
     let input_file = fs::File::open(&input_loc)?;
 
-    let outerr = Exec::shell(exec)
+    // let outerr = Exec::shell(exec)
+    let outerr = exec
         .stdin(input_file)
         .stdout(Redirection::Pipe)
         .stderr(Redirection::Merge)
@@ -78,7 +78,11 @@ mod tests {
             .iter()
             .map(|s| {
                 tokio::spawn(async {
-                    run("./src/test-binary/aplusb.exe", s, "./src/test-binary/temp/")
+                    run(
+                        Exec::shell("./src/test-binary/aplusb.exe"),
+                        s,
+                        "./src/test-binary/temp/",
+                    )
                 })
             })
             .collect();
