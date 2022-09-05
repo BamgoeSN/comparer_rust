@@ -1,59 +1,62 @@
+use core::time;
 use std::{
-    fs::{self, File},
-    io::{self, Result, Write},
+    ffi::OsStr,
     path::{Path, PathBuf},
+    process::Stdio,
 };
 
-use rand::random;
-use sha2::{Digest, Sha256};
-use subprocess::*;
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use tokio::{
+    fs::{self, File},
+    io::{AsyncReadExt, AsyncWriteExt, Result},
+    process::Command,
+    time::timeout,
+};
 
-pub fn run(exec: Exec, input: &str, dir_input: impl AsRef<Path>) -> Result<String> {
-    let input_loc = generate_file(&dir_input, input)?;
-    let input_file = fs::File::open(&input_loc)?;
+pub async fn run(
+    command: impl AsRef<OsStr>,
+    args: &[impl AsRef<OsStr>],
+    input: &str,
+    dir_input: impl AsRef<Path>,
+    duration: time::Duration,
+) -> Result<String> {
+    let input_loc = generate_file(&dir_input, input).await?;
+    let input_file = fs::File::open(&input_loc).await?;
 
-    // let outerr = Exec::shell(exec)
-    let outerr = exec
-        .stdin(input_file)
-        .stdout(Redirection::Pipe)
-        .stderr(Redirection::Merge)
-        .capture()
-        .map_err(|x| match x {
-            PopenError::IoError(y) => {
-                io::Error::new(y.kind(), "IoError while running child process")
-            }
-            PopenError::LogicError(y) => io::Error::new(
-                io::ErrorKind::Other,
-                format!("LogicError while running child process: {}", y),
-            ),
-            _ => io::Error::new(
-                io::ErrorKind::Other,
-                "Unknown error while running child process",
-            ),
-        })?
-        .stdout_str();
+    let mut proc = Command::new(command)
+        .args(args)
+        .stdin(Stdio::from(input_file.into_std().await))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
 
-    fs::remove_file(input_loc)?;
+    if let Err(_) = timeout(duration, proc.wait()).await {
+        return Ok("Timeout".to_owned());
+    }
 
-    Ok(outerr)
+    proc.wait().await?;
+
+    let mut out = String::new();
+    proc.stdout.unwrap().read_to_string(&mut out).await?;
+
+    fs::remove_file(input_loc).await?;
+
+    Ok(out)
 }
 
-fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> {
+async fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> {
     let mut file_path = dir.as_ref().to_owned();
     file_path.push(random_name());
     file_path.set_extension("txt");
-    let mut file = File::create(file_path.clone())?;
-    file.write_all(content.as_bytes())?;
+    let mut file = File::create(file_path.clone()).await?;
+    file.write_all(content.as_bytes()).await?;
     Ok(file_path)
 }
 
 fn random_name() -> String {
-    let mut buf = String::new();
-    for _ in 0..10 {
-        buf.push_str(&format!("{}", random::<i64>()));
-    }
-
-    let mut hasher = Sha256::new();
-    hasher.update(&buf);
-    format!("{:x}", hasher.finalize())
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(30)
+        .map(char::from)
+        .collect()
 }

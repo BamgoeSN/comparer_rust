@@ -2,14 +2,14 @@ pub mod run_code;
 
 #[cfg(test)]
 mod tests {
-    use subprocess::Exec;
-
     use super::*;
-    use std::iter;
+    use std::{iter, time::Duration};
 
     #[tokio::test]
     async fn test_run_code() {
-        let inputs = vec!["1 2", "3 5", "2 6", "4 1"];
+        let inputs = vec![
+            "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1",
+        ];
         let outputs: Vec<_> = inputs
             .iter()
             .map(|s| {
@@ -21,22 +21,23 @@ mod tests {
         let handles: Vec<_> = inputs
             .iter()
             .map(|s| {
-                tokio::spawn(async {
-                    run_code::run(
-                        Exec::shell("./src/test-binary/aplusb.exe"),
-                        s,
-                        "./src/test-binary/temp/",
-                    )
-                })
+                tokio::spawn(run_code::run(
+                    "./src/test-binary/aplusb.exe",
+                    &[] as &[String],
+                    s,
+                    "./src/test-binary/temp/",
+                    Duration::from_secs(10),
+                ))
             })
             .collect();
 
         let mut returns: Vec<_> = Vec::new();
-        for h in handles.into_iter() {
+        for h in handles {
             let x = h.await.unwrap().unwrap();
             returns.push(x);
         }
 
+        println!("{:?}", returns);
         for (a, b) in iter::zip(outputs.iter(), returns.iter()) {
             assert_eq!(a.trim(), b.trim());
         }
