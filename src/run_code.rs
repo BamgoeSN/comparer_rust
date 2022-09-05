@@ -30,7 +30,7 @@ pub async fn run(
         .stderr(Stdio::piped())
         .spawn()?;
 
-    if let Err(_) = timeout(duration, proc.wait()).await {
+    if timeout(duration, proc.wait()).await.is_err() {
         return Ok("Timeout".to_owned());
     }
 
