@@ -1,4 +1,5 @@
 /target
+/.vscode
 
 /compile/*/main.*
 /compile/*/*.exe
