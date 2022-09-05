@@ -28,7 +28,7 @@ pub fn compile(
                 .arg(code_path)
                 .arg("-o")
                 .arg(&exec_path)
-                .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu++20"])
+                .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu11"])
                 .spawn()
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");
@@ -38,7 +38,7 @@ pub fn compile(
                 .arg(code_path)
                 .arg("-o")
                 .arg(&exec_path)
-                .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu++20"])
+                .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu++17"])
                 .spawn()
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");
