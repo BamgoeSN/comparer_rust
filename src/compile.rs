@@ -1,5 +1,7 @@
 use std::{
+    env,
     ffi::OsStr,
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -50,14 +52,15 @@ pub fn compile(
                 .expect("Failed to execute compilation");
         }
         RunLang::Java => {
-            todo!();
             let code_dir: &Path = code_path.as_ref();
             let mut code_dir = code_dir.to_owned();
             code_dir.pop();
-
-            let mut manifest = code_dir.clone();
-            manifest.push("manifest");
-            manifest.set_extension("txt");
+            let code_dir = code_dir.to_str()?;
+            // let mut manifest = code_dir.clone();
+            // manifest.push("manifest");
+            // manifest.set_extension("txt");
+            // let mut all_class = code_dir.clone();
+            // all_class.push("*.class");
 
             Command::new("javac")
                 .args(["-encoding", "utf-8"])
@@ -66,34 +69,17 @@ pub fn compile(
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");
 
-            let mut all_class = code_dir.clone();
-            all_class.push("*.class");
-
-            let exec_path_str: &Path = exec_path.as_ref();
-            println!(
-                "{}",
-                format!(
-                    "jar -cvmf {} {} {}",
-                    manifest.to_str().unwrap(),
-                    exec_path_str.to_str().unwrap(),
-                    all_class.to_str().unwrap()
-                )
-            );
+            let exec_path: &Path = exec_path.as_ref();
+            let exec_path = absolute_path(exec_path).ok()?;
+            let exec_path = exec_path.to_str()?;
             Command::new("bash")
                 .arg("-c")
                 .arg(format!(
-                    "jar -cvmf {} {} {}",
-                    manifest.to_str().unwrap(),
-                    exec_path_str.to_str().unwrap(),
-                    all_class.to_str().unwrap()
+                    "cd {code_dir} && jar -cvmf manifest.txt {exec_path} *.class && rm *.class"
                 ))
                 .spawn()
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");
-
-            return None;
-
-            Command::new("rm").arg(&all_class);
         }
         RunLang::Go => {
             Command::new("go")
@@ -121,4 +107,16 @@ pub fn compile(
     } else {
         None
     }
+}
+
+pub fn absolute_path(path: impl AsRef<Path>) -> io::Result<PathBuf> {
+    let path = path.as_ref();
+
+    let absolute_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()?.join(path)
+    };
+
+    Ok(absolute_path)
 }
