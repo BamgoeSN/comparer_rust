@@ -1,7 +1,7 @@
 use std::{
     env,
     ffi::OsStr,
-    fs, io,
+    io,
     path::{Path, PathBuf},
     process::Command,
 };

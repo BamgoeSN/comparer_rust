@@ -1,4 +1,4 @@
-use comparer_rust::{compile::compile, run_code::run};
+use comparer_rust::compile::compile;
 
 fn main() {
     let x = compile(
