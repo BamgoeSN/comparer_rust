@@ -1,7 +1,6 @@
 use std::{
     env,
-    ffi::OsStr,
-    io,
+    io::{self, Result},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -18,9 +17,12 @@ pub enum RunLang {
 
 pub fn compile(
     lang: RunLang,
-    code_path: impl AsRef<OsStr> + AsRef<Path>,
-    exec_path: impl AsRef<OsStr> + AsRef<Path>,
-) -> Option<PathBuf> {
+    code_path: impl AsRef<Path>,
+    exec_path: impl AsRef<Path>,
+) -> Result<PathBuf> {
+    let code_path = absolute_path(code_path)?;
+    let exec_path = absolute_path(exec_path)?;
+
     // Compilation can run asynchronously
     match lang {
         RunLang::C => {
@@ -52,15 +54,9 @@ pub fn compile(
                 .expect("Failed to execute compilation");
         }
         RunLang::Java => {
-            let code_dir: &Path = code_path.as_ref();
-            let mut code_dir = code_dir.to_owned();
+            let mut code_dir = code_path.clone();
             code_dir.pop();
-            let code_dir = code_dir.to_str()?;
-            // let mut manifest = code_dir.clone();
-            // manifest.push("manifest");
-            // manifest.set_extension("txt");
-            // let mut all_class = code_dir.clone();
-            // all_class.push("*.class");
+            let code_dir = code_dir.to_str().unwrap();
 
             Command::new("javac")
                 .args(["-encoding", "utf-8"])
@@ -69,9 +65,8 @@ pub fn compile(
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");
 
-            let exec_path: &Path = exec_path.as_ref();
-            let exec_path = absolute_path(exec_path).ok()?;
-            let exec_path = exec_path.to_str()?;
+            let exec_path = absolute_path(&exec_path)?;
+            let exec_path = exec_path.to_str().unwrap();
             Command::new("bash")
                 .arg("-c")
                 .arg(format!(
@@ -101,11 +96,14 @@ pub fn compile(
                 .expect("Failed to execute compilation");
         }
     }
-    let out: &Path = exec_path.as_ref();
-    if out.exists() {
-        Some(out.to_owned())
+
+    if exec_path.exists() {
+        Ok(exec_path)
     } else {
-        None
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "Requested executable couldn't be generated",
+        ))
     }
 }
 
