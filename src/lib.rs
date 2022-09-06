@@ -22,12 +22,12 @@ mod tests {
             .collect();
 
         let handles: Vec<_> = inputs
-            .iter()
+            .into_iter()
             .map(|s| {
                 tokio::spawn(run_code::run(
                     "./src/test-binary/aplusb.exe",
                     &[] as &[String],
-                    s,
+                    s.to_owned(),
                     "./src/test-binary/temp/",
                     Duration::from_secs(10),
                 ))

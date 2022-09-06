@@ -15,19 +15,48 @@ pub enum RunLang {
     Rust,
 }
 
+impl TryFrom<&str> for RunLang {
+    type Error = std::io::Error;
+    fn try_from(value: &str) -> Result<Self> {
+        use io::ErrorKind::*;
+        use RunLang::*;
+        match value {
+            "c" => Ok(C),
+            "cpp" | "c++" => Ok(Cpp),
+            "py" | "python" | "pypy" => Ok(Python),
+            "java" => Ok(Java),
+            "go" | "golang" => Ok(Go),
+            "rust" | "rs" => Ok(Rust),
+            _ => Err(io::Error::new(InvalidInput, "Wrong language name")),
+        }
+    }
+}
+
 pub fn compile(
     lang: RunLang,
     code_path: impl AsRef<Path>,
-    exec_path: impl AsRef<Path>,
+    exec_dir: impl AsRef<Path>,
+    exec_name: impl AsRef<Path>,
 ) -> Result<PathBuf> {
     let code_path = absolute_path(code_path)?;
-    let exec_path = absolute_path(exec_path)?;
+    let exec_dir = absolute_path(exec_dir)?;
+
+    let exec_path: PathBuf = {
+        let mut exec_path = exec_dir.to_owned();
+        exec_path.push(&exec_name);
+        exec_path.set_extension(match lang {
+            RunLang::Python => "py",
+            RunLang::Java => "jar",
+            _ => "exe",
+        });
+        exec_path
+    };
 
     // Compilation can run asynchronously
     match lang {
         RunLang::C => {
             Command::new("gcc")
-                .arg(code_path)
+                .arg(&code_path)
                 .arg("-o")
                 .arg(&exec_path)
                 .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu11"])
@@ -37,7 +66,7 @@ pub fn compile(
         }
         RunLang::Cpp => {
             Command::new("g++")
-                .arg(code_path)
+                .arg(&code_path)
                 .arg("-o")
                 .arg(&exec_path)
                 .args(["-O2", "-Wall", "-lm", "-static", "-std=gnu++17"])
@@ -47,7 +76,7 @@ pub fn compile(
         }
         RunLang::Python => {
             Command::new("cp")
-                .arg(code_path)
+                .arg(&code_path)
                 .arg(&exec_path)
                 .spawn()
                 .and_then(|mut x| x.wait())
@@ -81,7 +110,7 @@ pub fn compile(
                 .arg("build")
                 .arg("-o")
                 .arg(&exec_path)
-                .arg(code_path)
+                .arg(&code_path)
                 .spawn()
                 .and_then(|mut x| x.wait())
                 .expect("Failed to execute compilation");

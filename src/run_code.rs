@@ -16,11 +16,11 @@ use tokio::{
 pub async fn run(
     command: impl AsRef<OsStr>,
     args: &[impl AsRef<OsStr>],
-    input: &str,
+    input: String,
     dir_input: impl AsRef<Path>,
     duration: time::Duration,
 ) -> Result<String> {
-    let input_loc = generate_file(&dir_input, input).await?;
+    let input_loc = generate_file(&dir_input, &input).await?;
     let input_file = fs::File::open(&input_loc).await?;
 
     let mut proc = Command::new(command)
