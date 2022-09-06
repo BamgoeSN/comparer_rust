@@ -89,9 +89,9 @@ async fn main() -> Result<()> {
                 let end = (start + BATCH_SIZE).min(tc);
                 let batch = end - start;
 
-                let mut inputs: Vec<String> = Vec::with_capacity(batch);
+                let mut inputs: Vec<Arc<String>> = Vec::with_capacity(batch);
                 for h in generate_multi(batch).await {
-                    inputs.push(h.await?);
+                    inputs.push(Arc::new(h.await?));
                 }
 
                 let cr_results: Vec<String> = get_results(cr_lang, cr_prog.clone(), &inputs).await;
@@ -127,7 +127,11 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-pub async fn get_results(lang: RunLang, prog: impl AsRef<Path>, inputs: &[String]) -> Vec<String> {
+pub async fn get_results(
+    lang: RunLang,
+    prog: impl AsRef<Path>,
+    inputs: &[Arc<String>],
+) -> Vec<String> {
     let mut cr_handles: Vec<_> = Vec::with_capacity(inputs.len());
 
     for input in inputs.iter().cloned() {
@@ -138,7 +142,7 @@ pub async fn get_results(lang: RunLang, prog: impl AsRef<Path>, inputs: &[String
                     run_code::run(
                         "python3",
                         &arr,
-                        input,
+                        &*input,
                         "./compile/temp/",
                         Duration::from_millis(TIME_LIMIT),
                     )
@@ -156,7 +160,7 @@ pub async fn get_results(lang: RunLang, prog: impl AsRef<Path>, inputs: &[String
                     run_code::run(
                         "java",
                         &arr,
-                        input,
+                        &*input,
                         "./compile/temp/",
                         Duration::from_millis(TIME_LIMIT),
                     )
@@ -170,7 +174,7 @@ pub async fn get_results(lang: RunLang, prog: impl AsRef<Path>, inputs: &[String
                     run_code::run(
                         prog,
                         &[] as &[String],
-                        input,
+                        &*input,
                         "./compile/temp/",
                         Duration::from_millis(TIME_LIMIT),
                     )

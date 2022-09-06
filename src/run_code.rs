@@ -16,7 +16,7 @@ use tokio::{
 pub async fn run(
     command: impl AsRef<OsStr>,
     args: &[impl AsRef<OsStr>],
-    input: String,
+    input: &str,
     dir_input: impl AsRef<Path>,
     duration: time::Duration,
 ) -> Result<String> {

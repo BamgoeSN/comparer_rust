@@ -6,7 +6,7 @@ pub mod string;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{iter, time::Duration};
+    use std::{iter, sync::Arc, time::Duration};
     use tokio::io::Result;
 
     #[tokio::test]
@@ -14,6 +14,7 @@ mod tests {
         let inputs = vec![
             "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1",
         ];
+        let arcs: Vec<_> = inputs.iter().map(|&s| Arc::new(s)).collect();
         let outputs: Vec<_> = inputs
             .iter()
             .map(|s| {
@@ -22,13 +23,13 @@ mod tests {
             })
             .collect();
 
-        let handles: Vec<_> = inputs
+        let handles: Vec<_> = arcs
             .into_iter()
             .map(|s| {
                 tokio::spawn(run_code::run(
                     "./src/test-binary/aplusb.exe",
                     &[] as &[String],
-                    s.to_owned(),
+                    *s,
                     "./src/test-binary/temp/",
                     Duration::from_secs(10),
                 ))
