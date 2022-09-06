@@ -1,5 +1,6 @@
 /target
 /.vscode
+*.txt
 
 /compile/*/main.*
 /compile/*/*.exe
