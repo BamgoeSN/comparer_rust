@@ -39,9 +39,16 @@ pub async fn run(
     let mut out = String::new();
     proc.stdout.unwrap().read_to_string(&mut out).await?;
 
+    let mut err = String::new();
+    proc.stderr.unwrap().read_to_string(&mut err).await?;
+
     fs::remove_file(input_loc).await?;
 
-    Ok(out)
+    if err.is_empty() {
+        Ok(out)
+    } else {
+        Ok(err)
+    }
 }
 
 async fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> {
