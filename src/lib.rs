@@ -5,9 +5,10 @@ pub mod run_code;
 mod tests {
     use super::*;
     use std::{iter, time::Duration};
+    use tokio::io::Result;
 
     #[tokio::test]
-    async fn check_run_code() {
+    async fn check_run_code() -> Result<()> {
         let inputs = vec![
             "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1",
         ];
@@ -34,13 +35,14 @@ mod tests {
 
         let mut returns: Vec<_> = Vec::new();
         for h in handles {
-            let x = h.await.unwrap().unwrap();
+            let x = h.await??;
             returns.push(x);
         }
 
-        println!("{:?}", returns);
         for (a, b) in iter::zip(outputs.iter(), returns.iter()) {
             assert_eq!(a.trim(), b.trim());
         }
+
+        Ok(())
     }
 }
