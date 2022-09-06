@@ -99,7 +99,7 @@ pub fn compile(
             Command::new("bash")
                 .arg("-c")
                 .arg(format!(
-                    "cd {code_dir} && jar -cvmf manifest.txt {exec_path} *.class && rm *.class"
+                    "cd {code_dir} && jar -cf {exec_path} *.class && rm *.class"
                 ))
                 .spawn()
                 .and_then(|mut x| x.wait())
