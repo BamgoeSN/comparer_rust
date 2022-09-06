@@ -84,47 +84,81 @@ async fn main() -> Result<()> {
                     inputs.push(h.await?);
                 }
 
-                let cr_results: Vec<String> = async {
-                    let cr_handles: Vec<_> = inputs
-                        .iter()
-                        .map(|input| {
-                            tokio::spawn(run_code::run(
-                                cr_prog.clone(),
-                                &[] as &[String],
-                                input.to_owned(),
-                                "./compile/temp/",
-                                Duration::from_millis(TIME_LIMIT),
-                            ))
-                        })
-                        .collect();
-                    let mut arr: Vec<_> = Vec::with_capacity(batch);
+                let cr_results: Vec<String> = {
+                    let mut cr_handles: Vec<_> = Vec::with_capacity(batch);
+                    for input in inputs.iter().cloned() {
+                        let h = if let RunLang::Python = cr_lang {
+                            let arr: Vec<_> = vec![cr_prog.clone()];
+                            tokio::spawn(async move {
+                                run_code::run(
+                                    "python3",
+                                    &arr,
+                                    input,
+                                    "./compile/temp/",
+                                    Duration::from_millis(TIME_LIMIT),
+                                )
+                                .await
+                            })
+                        } else {
+                            let prog = cr_prog.clone();
+                            tokio::spawn(async move {
+                                run_code::run(
+                                    prog,
+                                    &[] as &[String],
+                                    input,
+                                    "./compile/temp/",
+                                    Duration::from_millis(TIME_LIMIT),
+                                )
+                                .await
+                            })
+                        };
+                        cr_handles.push(h);
+                    }
+                    let mut arr: Vec<String> = Vec::with_capacity(batch);
                     for h in cr_handles {
-                        arr.push(h.await.unwrap().unwrap());
+                        let x = h.await.unwrap().unwrap();
+                        arr.push(x);
                     }
                     arr
-                }
-                .await;
+                };
 
-                let wr_results: Vec<String> = async {
-                    let wr_handles: Vec<_> = inputs
-                        .iter()
-                        .map(|input| {
-                            tokio::spawn(run_code::run(
-                                wr_prog.clone(),
-                                &[] as &[String],
-                                input.to_owned(),
-                                "./compile/temp/",
-                                Duration::from_millis(TIME_LIMIT),
-                            ))
-                        })
-                        .collect();
-                    let mut arr: Vec<_> = Vec::with_capacity(batch);
+                let wr_results: Vec<String> = {
+                    let mut wr_handles: Vec<_> = Vec::with_capacity(batch);
+                    for input in inputs.iter().cloned() {
+                        let h = if let RunLang::Python = wr_lang {
+                            let arr: Vec<_> = vec![wr_prog.clone()];
+                            tokio::spawn(async move {
+                                run_code::run(
+                                    "python3",
+                                    &arr,
+                                    input,
+                                    "./compile/temp/",
+                                    Duration::from_millis(TIME_LIMIT),
+                                )
+                                .await
+                            })
+                        } else {
+                            let prog = wr_prog.clone();
+                            tokio::spawn(async move {
+                                run_code::run(
+                                    prog,
+                                    &[] as &[String],
+                                    input,
+                                    "./compile/temp/",
+                                    Duration::from_millis(TIME_LIMIT),
+                                )
+                                .await
+                            })
+                        };
+                        wr_handles.push(h);
+                    }
+                    let mut arr: Vec<String> = Vec::with_capacity(batch);
                     for h in wr_handles {
-                        arr.push(h.await.unwrap().unwrap());
+                        let x = h.await.unwrap().unwrap();
+                        arr.push(x);
                     }
                     arr
-                }
-                .await;
+                };
 
                 let wrongs: Vec<usize> = (0..batch)
                     .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))

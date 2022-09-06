@@ -3,5 +3,6 @@
 
 /compile/*/main.*
 /compile/*/*.exe
-/compile/java/Main.java
-/compile/java/*.jar
+/compile/*/*.py
+/compile/*/*.java
+/compile/*/*.jar
