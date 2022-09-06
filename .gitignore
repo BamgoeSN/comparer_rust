@@ -7,3 +7,5 @@
 /compile/*/*.py
 /compile/*/*.java
 /compile/*/*.jar
+!/compile/*/help.txt
+!/compile/*/manifest.txt
