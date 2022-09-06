@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::{fmt::Write, path::Path, sync::Arc, time::Duration};
 
 use clap::{Parser, Subcommand};
 use comparer_rust::{
@@ -7,6 +7,8 @@ use comparer_rust::{
     run_code,
     string::process_str,
 };
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use parking_lot::Mutex;
 use tokio::io::Result;
 
 const TC_DEFAULT: usize = 100;
@@ -52,7 +54,8 @@ async fn main() -> Result<()> {
             let cr_lang: RunLang = cr.as_str().try_into()?;
             let wr_lang: RunLang = wr.as_str().try_into()?;
 
-            let mut wrong_count: usize = 0;
+            let wrong_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+            let sent_count = wrong_count.clone();
 
             let cr_code_path = match cr_lang {
                 RunLang::C => "./compile/cr/main.c",
@@ -75,6 +78,13 @@ async fn main() -> Result<()> {
             let cr_prog = compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?;
             let wr_prog = compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?;
 
+            let pb = ProgressBar::new(tc as u64);
+            pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
+                .unwrap()
+                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+                .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.lock()).unwrap())
+                .progress_chars("=>-"));
+
             for start in (0..tc).step_by(BATCH_SIZE) {
                 let end = (start + BATCH_SIZE).min(tc);
                 let batch = end - start;
@@ -92,7 +102,7 @@ async fn main() -> Result<()> {
                     .collect();
 
                 for &i in wrongs.iter() {
-                    wrong_count += 1;
+                    *wrong_count.lock() += 1;
                     println!("Input");
                     println!("{}", inputs[i]);
                     println!("Correct Answer");
@@ -101,12 +111,15 @@ async fn main() -> Result<()> {
                     println!("{}", wr_results[i]);
                     println!("");
                 }
+
+                pb.inc((end - start) as u64);
             }
 
+            let wrong_count = *wrong_count.lock();
             match wrong_count {
-                0 => println!("No wrong answers detected"),
-                1 => println!("1 wrong ansewr detected"),
-                _ => println!("{wrong_count} wrong answers detected"),
+                0 => eprintln!("No wrong answers found"),
+                1 => eprintln!("1 wrong ansewr found"),
+                _ => eprintln!("{wrong_count} wrong answers found"),
             };
         }
     }
