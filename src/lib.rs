@@ -7,7 +7,7 @@ mod tests {
     use std::{iter, time::Duration};
 
     #[tokio::test]
-    async fn test_run_code() {
+    async fn check_run_code() {
         let inputs = vec![
             "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1", "1 2", "3 5", "2 6", "4 1",
         ];
