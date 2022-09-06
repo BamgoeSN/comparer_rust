@@ -1,13 +1,20 @@
-use core::future::Future;
-
-use rand::{thread_rng, Rng};
+use rand::{seq::SliceRandom, thread_rng};
+use std::{fmt::Write, future::Future};
 use tokio::task::JoinError;
 
 pub async fn generate_input() -> String {
-    // a+b
-    let a: i32 = thread_rng().gen_range(1..=10);
-    let b: i32 = thread_rng().gen_range(1..=10);
-    format!("{a} {b}\n")
+    let mut buf = String::new();
+    let mut rng = thread_rng();
+
+    let n: usize = 2;
+    writeln!(buf, "{n}").unwrap();
+    let mut arr: Vec<_> = (1..=n).collect();
+    arr.shuffle(&mut rng);
+    for v in arr {
+        writeln!(buf, "{v}").unwrap();
+    }
+
+    buf
 }
 
 /// Returns an iterator of "num" spawned tasks of generating inputs.
