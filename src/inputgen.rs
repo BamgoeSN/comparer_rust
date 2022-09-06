@@ -1,4 +1,4 @@
-use rand::{seq::SliceRandom, thread_rng};
+use rand::{thread_rng, Rng};
 use std::{fmt::Write, future::Future};
 use tokio::task::JoinError;
 
@@ -6,12 +6,15 @@ pub async fn generate_input() -> String {
     let mut buf = String::new();
     let mut rng = thread_rng();
 
-    let n: usize = 2;
-    writeln!(buf, "{n}").unwrap();
-    let mut arr: Vec<_> = (1..=n).collect();
-    arr.shuffle(&mut rng);
-    for v in arr {
-        writeln!(buf, "{v}").unwrap();
+    macro_rules! out { ($($arg:tt)*) => { write!(buf, $($arg)*).unwrap(); }; }
+    macro_rules! outln { ($($arg:tt)*) => { writeln!(buf, $($arg)*).unwrap(); }; }
+
+    let n: usize = rng.gen_range(1..=5);
+    outln!("{n}");
+    for _ in 0..n {
+        let start: u32 = rng.gen_range(0..=1000);
+        let end: u32 = rng.gen_range(start..=1000);
+        outln!("{start} {end}");
     }
 
     buf
