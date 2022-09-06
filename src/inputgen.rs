@@ -2,6 +2,7 @@ use rand::{thread_rng, Rng};
 use std::{fmt::Write, future::Future};
 use tokio::task::JoinError;
 
+#[allow(unused)]
 pub async fn generate_input() -> String {
     let mut buf = String::new();
     let mut rng = thread_rng();
