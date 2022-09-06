@@ -5,8 +5,8 @@ use comparer_rust::{
     compile::{compile, RunLang},
     inputgen::generate_multi,
     run_code,
+    string::process_str,
 };
-use futures::future;
 use tokio::io::Result;
 
 const TC_DEFAULT: usize = 100;
@@ -52,6 +52,8 @@ async fn main() -> Result<()> {
             let cr_lang: RunLang = cr.as_str().try_into()?;
             let wr_lang: RunLang = wr.as_str().try_into()?;
 
+            let mut wrong_count: usize = 0;
+
             let cr_code_path = match cr_lang {
                 RunLang::C => "./compile/cr/main.c",
                 RunLang::Cpp => "./compile/cr/main.cpp",
@@ -72,8 +74,6 @@ async fn main() -> Result<()> {
 
             let cr_prog = compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?;
             let wr_prog = compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?;
-
-            let mut wr_cnt: usize = 0;
 
             for start in (0..tc).step_by(BATCH_SIZE) {
                 let end = (start + BATCH_SIZE).min(tc);
@@ -125,9 +125,28 @@ async fn main() -> Result<()> {
                     arr
                 }
                 .await;
+
+                let wrongs: Vec<usize> = (0..batch)
+                    .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
+                    .collect();
+
+                for &i in wrongs.iter() {
+                    wrong_count += 1;
+                    println!("Input");
+                    println!("{}", inputs[i]);
+                    println!("Correct Answer");
+                    println!("{}", cr_results[i]);
+                    println!("Wrong Output");
+                    println!("{}", wr_results[i]);
+                    println!("");
+                }
             }
 
-            todo!()
+            match wrong_count {
+                0 => println!("No wrong answers detected"),
+                1 => println!("1 wrong ansewr detected"),
+                _ => println!("{wrong_count} wrong answers detected"),
+            };
         }
     }
 

@@ -1,6 +1,7 @@
 pub mod compile;
 pub mod inputgen;
 pub mod run_code;
+pub mod string;
 
 #[cfg(test)]
 mod tests {
