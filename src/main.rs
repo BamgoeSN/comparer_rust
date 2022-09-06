@@ -75,8 +75,8 @@ async fn main() -> Result<()> {
                 RunLang::Rust => "./compile/wr/main.rs",
             };
 
-            let cr_prog = compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?;
-            let wr_prog = compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?;
+            let cr_prog = Arc::new(compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?);
+            let wr_prog = Arc::new(compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?);
 
             let pb = ProgressBar::new(tc as u64);
             pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
@@ -94,8 +94,10 @@ async fn main() -> Result<()> {
                     inputs.push(Arc::new(h.await?));
                 }
 
-                let cr_results: Vec<String> = get_results(cr_lang, cr_prog.clone(), &inputs).await;
-                let wr_results: Vec<String> = get_results(wr_lang, wr_prog.clone(), &inputs).await;
+                let cr_results: Vec<String> =
+                    get_results(cr_lang, &*cr_prog.clone(), &inputs).await;
+                let wr_results: Vec<String> =
+                    get_results(wr_lang, &*wr_prog.clone(), &inputs).await;
 
                 let wrongs: Vec<usize> = (0..batch)
                     .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
