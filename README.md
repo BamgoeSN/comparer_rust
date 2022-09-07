@@ -7,5 +7,5 @@ The comparison is based on the way it's done in online judges for competitive pr
 ## General Workflow
 1. Write a Rust code which returns random testcases in `pub async fn generate_input() -> String` from `src/inputgen.rs`. You can generate a few testcases with this function for testing by executing `cargo run -- inputdebug <NUM>`.
 2. Put a code which outputs the correct answer in `compile/cr`, and the one with the possibly wrong answer in `compile/wr`. The name of the code should be `Main.java` if the code is in java, or `main.<ext>` otherwise.
-3. Run `cargo run --release -- compare <CR> <WR> [TC]`. `<CR>` and `<WR>` is a language each code is written in. [TC] is an optional value for the number of testcases to test, which defaults in 100.
+3. Run `cargo run --release -- compare <CR> <WR> [TC] [TL]`. `<CR>` and `<WR>` is a language each code is written in. `[TC]` is an optional value for the number of testcases to test, which defaults in 100. `[TL]` is an optional value for setting time limit for each test.
 
