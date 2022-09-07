@@ -1,11 +1,13 @@
-use std::{fmt::Write, path::Path, sync::Arc, time::Duration};
+use std::{fmt::Write, sync::Arc, time::Duration};
 
 use clap::{Parser, Subcommand};
 use comparer_rust::{
-    compile::{compile, RunLang},
+    core::{
+        compile::{compile, RunLang},
+        run_code::get_results,
+        string::process_str,
+    },
     inputgen::generate_multi,
-    run_code,
-    string::process_str,
 };
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use parking_lot::Mutex;
@@ -13,7 +15,7 @@ use tokio::io::Result;
 
 const TC_DEFAULT: usize = 100;
 const BATCH_SIZE: usize = 10;
-const TIME_LIMIT: u64 = 2000; // ms
+const TIME_LIMIT_DEFAULT: i64 = 2000; // ms
 
 #[derive(Parser)]
 struct Cli {
@@ -36,6 +38,8 @@ enum Commands {
         wr: String,
         /// The number of testcases (defaults at 100)
         tc: Option<usize>,
+        /// Time limit in milliseconds (defaults at 2000)
+        tl: Option<i64>,
     },
 }
 
@@ -45,153 +49,114 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Inputdebug { num } => {
-            for (tc, h) in generate_multi(num).await.enumerate() {
-                println!("Testcase {}\n{}", tc, h.await?);
-            }
+            input_debug(num).await?;
         }
-        Commands::Compare { cr, wr, tc } => {
-            let tc = tc.unwrap_or(TC_DEFAULT);
-            let cr_lang: RunLang = cr.as_str().try_into()?;
-            let wr_lang: RunLang = wr.as_str().try_into()?;
-
-            let wrong_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
-            let sent_count = wrong_count.clone();
-
-            let cr_code_path = match cr_lang {
-                RunLang::C => "./compile/cr/main.c",
-                RunLang::Cpp => "./compile/cr/main.cpp",
-                RunLang::Python => "./compile/cr/main.py",
-                RunLang::Java => "./compile/cr/Main.java",
-                RunLang::Go => "./compile/cr/main.go",
-                RunLang::Rust => "./compile/cr/main.rs",
-            };
-
-            let wr_code_path = match wr_lang {
-                RunLang::C => "./compile/wr/main.c",
-                RunLang::Cpp => "./compile/wr/main.cpp",
-                RunLang::Python => "./compile/wr/main.py",
-                RunLang::Java => "./compile/wr/Main.java",
-                RunLang::Go => "./compile/wr/main.go",
-                RunLang::Rust => "./compile/wr/main.rs",
-            };
-
-            let cr_prog = Arc::new(compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?);
-            let wr_prog = Arc::new(compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?);
-
-            let pb = ProgressBar::new(tc as u64);
-            pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
-                .unwrap()
-                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-                .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.lock()).unwrap())
-                .progress_chars("=>-"));
-
-            for start in (0..tc).step_by(BATCH_SIZE) {
-                let end = (start + BATCH_SIZE).min(tc);
-                let batch = end - start;
-
-                let mut inputs: Vec<Arc<String>> = Vec::with_capacity(batch);
-                for h in generate_multi(batch).await {
-                    inputs.push(Arc::new(h.await?));
-                }
-
-                let cr_results: Vec<String> =
-                    get_results(cr_lang, &*cr_prog.clone(), &inputs).await;
-                let wr_results: Vec<String> =
-                    get_results(wr_lang, &*wr_prog.clone(), &inputs).await;
-
-                let wrongs: Vec<usize> = (0..batch)
-                    .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
-                    .collect();
-
-                for &i in wrongs.iter() {
-                    *wrong_count.lock() += 1;
-                    println!("Input");
-                    println!("{}", inputs[i]);
-                    println!("Correct Answer");
-                    println!("{}", cr_results[i]);
-                    println!("Wrong Output");
-                    println!("{}", wr_results[i]);
-                    println!("");
-                }
-
-                pb.inc((end - start) as u64);
-            }
-
-            let wrong_count = *wrong_count.lock();
-            match wrong_count {
-                0 => eprintln!("No wrong answers found"),
-                1 => eprintln!("1 wrong ansewr found"),
-                _ => eprintln!("{wrong_count} wrong answers found"),
-            };
+        Commands::Compare { cr, wr, tc, tl } => {
+            compare(
+                &cr,
+                &wr,
+                tc.unwrap_or(TC_DEFAULT),
+                tl.unwrap_or(TIME_LIMIT_DEFAULT),
+            )
+            .await?;
         }
     }
 
     Ok(())
 }
 
-pub async fn get_results(
-    lang: RunLang,
-    prog: impl AsRef<Path>,
-    inputs: &[Arc<String>],
-) -> Vec<String> {
-    let mut cr_handles: Vec<_> = Vec::with_capacity(inputs.len());
+async fn get_actual_time_limit(lang: RunLang, tl: i64) -> Duration {
+    use RunLang::*;
+    let rtl = match lang {
+        C | Cpp | Rust => tl,
+        Go => tl + 2000,
+        Java => 2 * tl + 1000,
+        Python => 3 * tl + 2000,
+    };
+    Duration::from_millis(if rtl < 0 { 0 } else { rtl.unsigned_abs() })
+}
 
-    for input in inputs.iter().cloned() {
-        let h = match lang {
-            RunLang::Python => {
-                let arr: Vec<_> = vec![prog.as_ref().to_owned()];
-                tokio::spawn(async move {
-                    run_code::run(
-                        "python3",
-                        &arr,
-                        &*input,
-                        "./compile/temp/",
-                        Duration::from_millis(TIME_LIMIT),
-                    )
-                    .await
-                })
-            }
+async fn input_debug(num: usize) -> Result<()> {
+    for (tc, h) in generate_multi(num).await.enumerate() {
+        println!("Testcase {}\n{}", tc, h.await?);
+    }
+    Ok(())
+}
 
-            RunLang::Java => {
-                let arr: Vec<_> = vec![
-                    "-classpath".to_owned(),
-                    prog.as_ref().to_owned().to_str().unwrap().to_owned(),
-                    "Main".to_owned(),
-                ];
-                tokio::spawn(async move {
-                    run_code::run(
-                        "java",
-                        &arr,
-                        &*input,
-                        "./compile/temp/",
-                        Duration::from_millis(TIME_LIMIT),
-                    )
-                    .await
-                })
-            }
+async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
+    let cr_lang: RunLang = cr.try_into()?;
+    let wr_lang: RunLang = wr.try_into()?;
 
-            _ => {
-                let prog = prog.as_ref().to_owned();
-                tokio::spawn(async move {
-                    run_code::run(
-                        prog,
-                        &[] as &[String],
-                        &*input,
-                        "./compile/temp/",
-                        Duration::from_millis(TIME_LIMIT),
-                    )
-                    .await
-                })
-            }
-        };
+    let cr_tl = get_actual_time_limit(cr_lang, tl).await;
+    let wr_tl = get_actual_time_limit(wr_lang, tl).await;
 
-        cr_handles.push(h);
+    let wrong_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let sent_count = wrong_count.clone();
+
+    let cr_code_path = match cr_lang {
+        RunLang::C => "./compile/cr/main.c",
+        RunLang::Cpp => "./compile/cr/main.cpp",
+        RunLang::Python => "./compile/cr/main.py",
+        RunLang::Java => "./compile/cr/Main.java",
+        RunLang::Go => "./compile/cr/main.go",
+        RunLang::Rust => "./compile/cr/main.rs",
+    };
+
+    let wr_code_path = match wr_lang {
+        RunLang::C => "./compile/wr/main.c",
+        RunLang::Cpp => "./compile/wr/main.cpp",
+        RunLang::Python => "./compile/wr/main.py",
+        RunLang::Java => "./compile/wr/Main.java",
+        RunLang::Go => "./compile/wr/main.go",
+        RunLang::Rust => "./compile/wr/main.rs",
+    };
+
+    let cr_prog = Arc::new(compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?);
+    let wr_prog = Arc::new(compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?);
+
+    let pb = ProgressBar::new(tc as u64);
+    pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+        .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.lock()).unwrap())
+        .progress_chars("=>-"));
+
+    for start in (0..tc).step_by(BATCH_SIZE) {
+        let end = (start + BATCH_SIZE).min(tc);
+        let batch = end - start;
+
+        let mut inputs: Vec<Arc<String>> = Vec::with_capacity(batch);
+        for h in generate_multi(batch).await {
+            inputs.push(Arc::new(h.await?));
+        }
+
+        let cr_results: Vec<String> = get_results(cr_lang, &*cr_prog.clone(), &inputs, cr_tl).await;
+        let wr_results: Vec<String> = get_results(wr_lang, &*wr_prog.clone(), &inputs, wr_tl).await;
+
+        let wrongs: Vec<usize> = (0..batch)
+            .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
+            .collect();
+
+        for &i in wrongs.iter() {
+            *wrong_count.lock() += 1;
+            println!("Input");
+            println!("{}", inputs[i]);
+            println!("Correct Answer");
+            println!("{}", cr_results[i]);
+            println!("Wrong Output");
+            println!("{}", wr_results[i]);
+            println!("");
+        }
+
+        pb.inc((end - start) as u64);
     }
 
-    let mut arr: Vec<String> = Vec::with_capacity(cr_handles.len());
-    for h in cr_handles {
-        let x = h.await.unwrap().unwrap();
-        arr.push(x);
-    }
-    arr
+    let wrong_count = *wrong_count.lock();
+    match wrong_count {
+        0 => eprintln!("No wrong answers found"),
+        1 => eprintln!("1 wrong ansewr found"),
+        _ => eprintln!("{wrong_count} wrong answers found"),
+    };
+
+    Ok(())
 }

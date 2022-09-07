@@ -3,6 +3,8 @@ use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Stdio,
+    sync::Arc,
+    time::Duration,
 };
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
@@ -12,6 +14,8 @@ use tokio::{
     process::Command,
     time::timeout,
 };
+
+use crate::core::compile::RunLang;
 
 pub async fn run(
     command: impl AsRef<OsStr>,
@@ -58,6 +62,60 @@ async fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> 
     let mut file = File::create(file_path.clone()).await?;
     file.write_all(content.as_bytes()).await?;
     Ok(file_path)
+}
+
+pub async fn get_results(
+    lang: RunLang,
+    prog: impl AsRef<Path>,
+    inputs: &[Arc<String>],
+    time_limit: Duration,
+) -> Vec<String> {
+    let mut cr_handles: Vec<_> = Vec::with_capacity(inputs.len());
+
+    for input in inputs.iter().cloned() {
+        let h = match lang {
+            RunLang::Python => {
+                let arr: Vec<_> = vec![prog.as_ref().to_owned()];
+                tokio::spawn(async move {
+                    run("python3", &arr, &*input, "./compile/temp/", time_limit).await
+                })
+            }
+
+            RunLang::Java => {
+                let arr: Vec<_> = vec![
+                    "-classpath".to_owned(),
+                    prog.as_ref().to_owned().to_str().unwrap().to_owned(),
+                    "Main".to_owned(),
+                ];
+                tokio::spawn(async move {
+                    run("java", &arr, &*input, "./compile/temp/", time_limit).await
+                })
+            }
+
+            _ => {
+                let prog = prog.as_ref().to_owned();
+                tokio::spawn(async move {
+                    run(
+                        prog,
+                        &[] as &[String],
+                        &*input,
+                        "./compile/temp/",
+                        time_limit,
+                    )
+                    .await
+                })
+            }
+        };
+
+        cr_handles.push(h);
+    }
+
+    let mut arr: Vec<String> = Vec::with_capacity(cr_handles.len());
+    for h in cr_handles {
+        let x = h.await.unwrap().unwrap();
+        arr.push(x);
+    }
+    arr
 }
 
 fn random_name() -> String {
