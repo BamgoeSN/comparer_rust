@@ -15,7 +15,7 @@ use tokio::io::Result;
 
 const TC_DEFAULT: usize = 100;
 const BATCH_SIZE: usize = 10;
-const TIME_LIMIT: u64 = 2000; // ms
+const TIME_LIMIT_DEFAULT: i64 = 2000; // ms
 
 #[derive(Parser)]
 struct Cli {
@@ -38,6 +38,8 @@ enum Commands {
         wr: String,
         /// The number of testcases (defaults at 100)
         tc: Option<usize>,
+        /// Time limit in milliseconds (defaults at 2000)
+        tl: Option<i64>,
     },
 }
 
@@ -49,12 +51,29 @@ async fn main() -> Result<()> {
         Commands::Inputdebug { num } => {
             input_debug(num).await?;
         }
-        Commands::Compare { cr, wr, tc } => {
-            compare(&cr, &wr, tc.unwrap_or(TC_DEFAULT)).await?;
+        Commands::Compare { cr, wr, tc, tl } => {
+            compare(
+                &cr,
+                &wr,
+                tc.unwrap_or(TC_DEFAULT),
+                tl.unwrap_or(TIME_LIMIT_DEFAULT),
+            )
+            .await?;
         }
     }
 
     Ok(())
+}
+
+async fn get_actual_time_limit(lang: RunLang, tl: i64) -> Duration {
+    use RunLang::*;
+    let rtl = match lang {
+        C | Cpp | Rust => tl,
+        Go => tl + 2000,
+        Java => 2 * tl + 1000,
+        Python => 3 * tl + 2000,
+    };
+    Duration::from_millis(if rtl < 0 { 0 } else { rtl.unsigned_abs() })
 }
 
 async fn input_debug(num: usize) -> Result<()> {
@@ -64,9 +83,12 @@ async fn input_debug(num: usize) -> Result<()> {
     Ok(())
 }
 
-async fn compare(cr: &str, wr: &str, tc: usize) -> Result<()> {
+async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
     let cr_lang: RunLang = cr.try_into()?;
     let wr_lang: RunLang = wr.try_into()?;
+
+    let cr_tl = get_actual_time_limit(cr_lang, tl).await;
+    let wr_tl = get_actual_time_limit(wr_lang, tl).await;
 
     let wrong_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
     let sent_count = wrong_count.clone();
@@ -108,20 +130,8 @@ async fn compare(cr: &str, wr: &str, tc: usize) -> Result<()> {
             inputs.push(Arc::new(h.await?));
         }
 
-        let cr_results: Vec<String> = get_results(
-            cr_lang,
-            &*cr_prog.clone(),
-            &inputs,
-            Duration::from_millis(TIME_LIMIT),
-        )
-        .await;
-        let wr_results: Vec<String> = get_results(
-            wr_lang,
-            &*wr_prog.clone(),
-            &inputs,
-            Duration::from_millis(TIME_LIMIT),
-        )
-        .await;
+        let cr_results: Vec<String> = get_results(cr_lang, &*cr_prog.clone(), &inputs, cr_tl).await;
+        let wr_results: Vec<String> = get_results(wr_lang, &*wr_prog.clone(), &inputs, wr_tl).await;
 
         let wrongs: Vec<usize> = (0..batch)
             .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
