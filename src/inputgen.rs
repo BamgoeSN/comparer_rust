@@ -2,6 +2,8 @@ use rand::{thread_rng, Rng};
 use std::{fmt::Write, future::Future};
 use tokio::task::JoinError;
 
+use crate::core::string::process_str;
+
 #[allow(unused)]
 pub async fn generate_input() -> String {
     let mut buf = String::new();
@@ -18,7 +20,7 @@ pub async fn generate_input() -> String {
         outln!("{start} {end}");
     }
 
-    buf
+    process_str(&buf)
 }
 
 /// Returns an iterator of "num" spawned tasks of generating inputs.
