@@ -1,7 +1,5 @@
-pub mod compile;
+pub mod core;
 pub mod inputgen;
-pub mod run_code;
-pub mod string;
 
 #[cfg(test)]
 mod tests {
@@ -26,7 +24,7 @@ mod tests {
         let handles: Vec<_> = arcs
             .into_iter()
             .map(|s| {
-                tokio::spawn(run_code::run(
+                tokio::spawn(core::run_code::run(
                     "./src/test-binary/aplusb.exe",
                     &[] as &[String],
                     *s,
