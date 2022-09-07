@@ -35,6 +35,7 @@ pub async fn run(
         .spawn()?;
 
     if timeout(duration, proc.wait()).await.is_err() {
+        fs::remove_file(input_loc).await?;
         return Ok("Timeout".to_owned());
     }
 
