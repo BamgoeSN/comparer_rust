@@ -10,7 +10,7 @@ use comparer_rust::{
     inputgen::generate_multi,
 };
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use tokio::io::Result;
 
 const TC_DEFAULT: usize = 100;
@@ -90,7 +90,8 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
     let cr_tl = get_actual_time_limit(cr_lang, tl).await;
     let wr_tl = get_actual_time_limit(wr_lang, tl).await;
 
-    let wrong_count: Arc<Mutex<usize>> = Arc::new(Mutex::new(0));
+    let wrong_count = Arc::new(RwLock::new(0usize));
+    let wrong_writer = wrong_count.clone();
     let sent_count = wrong_count.clone();
 
     let cr_code_path = match cr_lang {
@@ -118,7 +119,7 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
     pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
         .unwrap()
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-        .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.lock()).unwrap())
+        .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.read()).unwrap())
         .progress_chars("=>-"));
 
     for start in (0..tc).step_by(BATCH_SIZE) {
@@ -137,8 +138,8 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
             .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
             .collect();
 
+        *wrong_writer.write() += wrongs.len();
         for &i in wrongs.iter() {
-            *wrong_count.lock() += 1;
             println!("Input");
             println!("{}", inputs[i]);
             println!("Correct Answer");
@@ -151,7 +152,7 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
         pb.inc((end - start) as u64);
     }
 
-    let wrong_count = *wrong_count.lock();
+    let wrong_count = *wrong_count.read();
     match wrong_count {
         0 => eprintln!("No wrong answers found"),
         1 => eprintln!("1 wrong ansewr found"),
