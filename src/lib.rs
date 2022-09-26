@@ -1,4 +1,5 @@
 pub mod core;
+pub mod genhelper;
 pub mod inputgen;
 
 #[cfg(test)]
