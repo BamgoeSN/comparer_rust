@@ -42,7 +42,7 @@ pub fn compile(
     let exec_dir = absolute_path(exec_dir)?;
 
     let exec_path: PathBuf = {
-        let mut exec_path = exec_dir.to_owned();
+        let mut exec_path = exec_dir;
         exec_path.push(&exec_name);
         exec_path.set_extension(match lang {
             RunLang::Python => "py",

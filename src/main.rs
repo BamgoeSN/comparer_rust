@@ -146,7 +146,7 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
             println!("{}", cr_results[i]);
             println!("Wrong Output");
             println!("{}", wr_results[i]);
-            println!("");
+            println!();
         }
 
         pb.inc((end - start) as u64);

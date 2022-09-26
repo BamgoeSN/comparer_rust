@@ -27,6 +27,5 @@ pub async fn generate_input() -> String {
 pub async fn generate_multi(
     num: usize,
 ) -> impl Iterator<Item = impl Future<Output = Result<String, JoinError>>> {
-    let arr: Vec<_> = (0..num).map(|_| tokio::spawn(generate_input())).collect();
-    arr.into_iter()
+    (0..num).map(|_| tokio::spawn(generate_input()))
 }
