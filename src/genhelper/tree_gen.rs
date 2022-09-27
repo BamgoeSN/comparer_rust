@@ -63,10 +63,8 @@ impl Tree {
             };
         }
 
-        let mut willseq: Vec<_> = (0..n).collect();
-        willseq.shuffle(rng);
-        let prufer = &willseq[..n - 2];
-        Self::from_prufer(prufer).unwrap()
+        let prufer: Vec<_> = (0..n - 2).map(|_| rng.gen_range(0..n)).collect();
+        Self::from_prufer(&prufer).unwrap()
     }
 
     /// Returns a parent list where parent[i] is Some(parent of i-th node).
