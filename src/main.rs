@@ -120,7 +120,7 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
         .unwrap()
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
         .with_key("wrong_count", move |_: &ProgressState, w: &mut dyn Write| write!(w, "{}", *sent_count.read()).unwrap())
-        .progress_chars("=>-"));
+        .progress_chars("=> "));
 
     for start in (0..tc).step_by(BATCH_SIZE) {
         let end = (start + BATCH_SIZE).min(tc);
