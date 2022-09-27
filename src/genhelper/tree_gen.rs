@@ -1,6 +1,6 @@
 use std::{cmp::Reverse, collections::BinaryHeap};
 
-use rand::{seq::SliceRandom, Rng};
+use rand::Rng;
 
 /// Represents a tree with undirected edges, with no root set.
 pub struct Tree {
