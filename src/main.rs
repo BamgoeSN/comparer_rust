@@ -94,26 +94,19 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
     let wrong_writer = wrong_count.clone();
     let sent_count = wrong_count.clone();
 
-    let cr_code_path = match cr_lang {
-        RunLang::C => "./compile/cr/main.c",
-        RunLang::Cpp => "./compile/cr/main.cpp",
-        RunLang::Python => "./compile/cr/main.py",
-        RunLang::Java => "./compile/cr/Main.java",
-        RunLang::Go => "./compile/cr/main.go",
-        RunLang::Rust => "./compile/cr/main.rs",
+    let code_file = match cr_lang {
+        RunLang::C => "main.c",
+        RunLang::Cpp => "main.cpp",
+        RunLang::Python => "main.py",
+        RunLang::Java => "Main.java",
+        RunLang::Go => "main.go",
+        RunLang::Rust => "main.rs",
     };
+    let cr_code_path = format!("./compile/cr/{code_file}");
+    let wr_code_path = format!("./compile/wr/{code_file}");
 
-    let wr_code_path = match wr_lang {
-        RunLang::C => "./compile/wr/main.c",
-        RunLang::Cpp => "./compile/wr/main.cpp",
-        RunLang::Python => "./compile/wr/main.py",
-        RunLang::Java => "./compile/wr/Main.java",
-        RunLang::Go => "./compile/wr/main.go",
-        RunLang::Rust => "./compile/wr/main.rs",
-    };
-
-    let cr_prog = Arc::new(compile(cr_lang, cr_code_path, "./compile/cr/", "cr")?);
-    let wr_prog = Arc::new(compile(wr_lang, wr_code_path, "./compile/wr/", "wr")?);
+    let cr_prog = compile(cr_lang, &cr_code_path, "./compile/cr/", "cr")?;
+    let wr_prog = compile(wr_lang, &wr_code_path, "./compile/wr/", "wr")?;
 
     let pb = ProgressBar::new(tc as u64);
     pb.set_style(ProgressStyle::with_template("{spinner:.blue} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos:>7}/{len:7} ({eta})  Found: {wrong_count:<7}")
@@ -126,13 +119,14 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
         let end = (start + BATCH_SIZE).min(tc);
         let batch = end - start;
 
-        let mut inputs: Vec<Arc<String>> = Vec::with_capacity(batch);
+        let mut inputs: Vec<String> = Vec::with_capacity(batch);
         for h in generate_multi(batch).await {
-            inputs.push(Arc::new(h.await?));
+            inputs.push(h.await?);
         }
+        let inputs: Arc<[String]> = inputs.into();
 
-        let cr_results: Vec<String> = get_results(cr_lang, &*cr_prog.clone(), &inputs, cr_tl).await;
-        let wr_results: Vec<String> = get_results(wr_lang, &*wr_prog.clone(), &inputs, wr_tl).await;
+        let cr_results: Vec<String> = get_results(cr_lang, &cr_prog, inputs.clone(), cr_tl).await;
+        let wr_results: Vec<String> = get_results(wr_lang, &wr_prog, inputs.clone(), wr_tl).await;
 
         let wrongs: Vec<usize> = (0..batch)
             .filter(|&i| process_str(&cr_results[i]) != process_str(&wr_results[i]))
@@ -155,8 +149,7 @@ async fn compare(cr: &str, wr: &str, tc: usize, tl: i64) -> Result<()> {
     let wrong_count = *wrong_count.read();
     match wrong_count {
         0 => eprintln!("No wrong answers found"),
-        1 => eprintln!("1 wrong ansewr found"),
-        _ => eprintln!("{wrong_count} wrong answers found"),
+        x => eprintln!("# of wrong answers: {x}"),
     };
 
     Ok(())

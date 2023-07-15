@@ -1,5 +1,6 @@
 use core::time;
 use std::{
+    borrow::Borrow,
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Stdio,
@@ -24,7 +25,7 @@ pub async fn run(
     dir_input: impl AsRef<Path>,
     duration: time::Duration,
 ) -> Result<String> {
-    let input_loc = generate_file(&dir_input, input).await?;
+    let input_loc = generate_file_with_random_name(&dir_input, input).await?;
     let input_file = fs::File::open(&input_loc).await?;
 
     let mut proc = Command::new(command)
@@ -56,7 +57,7 @@ pub async fn run(
     }
 }
 
-async fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> {
+async fn generate_file_with_random_name(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> {
     let mut file_path = dir.as_ref().to_owned();
     file_path.push(random_name());
     file_path.set_extension("txt");
@@ -68,15 +69,17 @@ async fn generate_file(dir: impl AsRef<Path>, content: &str) -> Result<PathBuf> 
 pub async fn get_results(
     lang: RunLang,
     prog: impl AsRef<Path>,
-    inputs: &[Arc<String>],
+    inputs: impl Borrow<[String]>,
     time_limit: Duration,
 ) -> Vec<String> {
+    let inputs = inputs.borrow();
+    let prog = prog.as_ref();
     let mut cr_handles: Vec<_> = Vec::with_capacity(inputs.len());
 
     for input in inputs.iter().cloned() {
         let h = match lang {
             RunLang::Python => {
-                let arr: Vec<_> = vec![prog.as_ref().to_owned()];
+                let arr: Vec<_> = vec![prog.to_owned()];
                 tokio::spawn(async move {
                     run("python3", &arr, &*input, "./compile/temp/", time_limit).await
                 })
@@ -85,7 +88,7 @@ pub async fn get_results(
             RunLang::Java => {
                 let arr: Vec<_> = vec![
                     "-classpath".to_owned(),
-                    prog.as_ref().to_owned().to_str().unwrap().to_owned(),
+                    prog.to_owned().to_str().unwrap().to_owned(),
                     "Main".to_owned(),
                 ];
                 tokio::spawn(async move {
@@ -94,7 +97,7 @@ pub async fn get_results(
             }
 
             _ => {
-                let prog = prog.as_ref().to_owned();
+                let prog = prog.to_owned();
                 tokio::spawn(async move {
                     run(
                         prog,
