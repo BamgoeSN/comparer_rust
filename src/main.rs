@@ -78,7 +78,7 @@ async fn get_actual_time_limit(lang: RunLang, tl: i64) -> Duration {
 
 async fn input_debug(num: usize) -> Result<()> {
     for (tc, h) in generate_multi(num).await.enumerate() {
-        println!("Testcase {}\n{}", tc, h.await?);
+        println!("Testcase {}\n```\n{}\n```", tc, h.await?);
     }
     Ok(())
 }
