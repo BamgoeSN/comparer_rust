@@ -6,8 +6,6 @@ pub fn process_str(s: &str) -> String {
         writeln!(builder, "{}", l.trim_end()).unwrap();
     }
     let trimmed_len = builder.trim_end().len();
-    while builder.len() > trimmed_len + 1 {
-        builder.pop();
-    }
+    builder.truncate(trimmed_len + 1);
     builder
 }
