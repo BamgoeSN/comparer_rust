@@ -4,7 +4,6 @@ use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
     time::Duration,
 };
 
@@ -81,7 +80,7 @@ pub async fn get_results(
             RunLang::Python => {
                 let arr: Vec<_> = vec![prog.to_owned()];
                 tokio::spawn(async move {
-                    run("python3", &arr, &*input, "./compile/temp/", time_limit).await
+                    run("python3", &arr, &input, "./compile/temp/", time_limit).await
                 })
             }
 
@@ -92,7 +91,7 @@ pub async fn get_results(
                     "Main".to_owned(),
                 ];
                 tokio::spawn(async move {
-                    run("java", &arr, &*input, "./compile/temp/", time_limit).await
+                    run("java", &arr, &input, "./compile/temp/", time_limit).await
                 })
             }
 
@@ -102,7 +101,7 @@ pub async fn get_results(
                     run(
                         prog,
                         &[] as &[String],
-                        &*input,
+                        &input,
                         "./compile/temp/",
                         time_limit,
                     )
