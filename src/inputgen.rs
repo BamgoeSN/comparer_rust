@@ -10,11 +10,11 @@ pub async fn generate_input() -> String {
     let mut buf = String::new();
     let mut rng = thread_rng();
 
-    macro_rules! out { ($($arg:tt)*) => { write!(buf, $($arg)*).unwrap(); }; }
-    macro_rules! outln { ($($arg:tt)*) => { writeln!(buf, $($arg)*).unwrap(); }; }
+    macro_rules! print { ($($arg:tt)*) => { write!(buf, $($arg)*).unwrap(); }; }
+    macro_rules! println { ($($arg:tt)*) => { writeln!(buf, $($arg)*).unwrap(); }; }
 
     let n: usize = rng.gen_range(1..=50000);
-    outln!("{}", n);
+    println!("{}", n);
 
     process_str(&buf)
 }
